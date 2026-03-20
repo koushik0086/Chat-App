@@ -16,7 +16,7 @@ export default function ChatPage() {
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    getRooms().then(r => setRooms(r.data))
+    getRooms().then(r => setRooms(r.data.rooms))
   }, [])
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function ChatPage() {
     setActiveRoom(room)
     joinRoom(room._id)
     const res = await getMessages(room._id)
-    setMessages(room._id, res.data)
+    setMessages(room._id, res.data.messages)
   }
 
   const roomMessages = activeRoom ? (messages[activeRoom._id] || []) : []

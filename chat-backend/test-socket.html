@@ -1,0 +1,49 @@
+ <!DOCTYPE html>
+<html>
+<head>
+  <title>Socket Test</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <h2>Socket.IO Test</h2>
+  <div id="log"></div>
+
+  <script>
+    // Paste your JWT token here from Postman login
+    const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YmM0MTc2Yjc4NDk5YWNhZTVmNjVjMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3Mzk4NzY1MSwiZXhwIjoxNzc0NTkyNDUxfQ.UMmQonT-1z8qz9CPzDypm085CLPF4rTDgYf163LTPAA";
+
+    const socket = io("http://localhost:5000", {
+      auth: { token: TOKEN }
+    });
+
+    const log = (msg) => {
+      document.getElementById("log").innerHTML += `<p>${msg}</p>`;
+      console.log(msg);
+    };
+
+    socket.on("connect", () => {
+      log("✅ Connected: " + socket.id);
+
+      // Join a room — paste your roomId from Postman Test 1
+      const ROOM_ID = "69bc54edd8203753353410db";
+      socket.emit("join-room", ROOM_ID);
+
+      // Send a message after 1 second
+      setTimeout(() => {
+        socket.emit("send-message", {
+          roomId: ROOM_ID,
+          content: "Hello from Socket.IO! 🚀"
+        });
+      }, 1000);
+    });
+
+    socket.on("joined-room", (data) => log("🚪 Joined room: " + data.roomName));
+    socket.on("new-message", (msg) => log("💬 New message: " + msg.content));
+    socket.on("user-online", (u) => log("🟢 Online: " + u.name));
+    socket.on("user-offline", (u) => log("🔴 Offline: " + u.name));
+    socket.on("error", (e) => log("❌ Error: " + e.message));
+
+    socket.on("disconnect", () => log("❌ Disconnected"));
+  </script>
+</body>
+</html>

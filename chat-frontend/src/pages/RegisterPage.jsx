@@ -19,16 +19,23 @@ export default function RegisterPage() {
   const setAuth = useAuthStore(s => s.setAuth)
   const navigate = useNavigate()
 
+
   const onSubmit = async (data) => {
-    try {
-      const res = await registerUser(data)
-      setAuth(res.data.user, res.data.token)
-      toast.success('Account created!')
-      navigate('/chat')
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Register failed')
-    }
+  try {
+    const res = await registerUser({
+      name: data.username,  // ← map username → name
+      email: data.email,
+      password: data.password,
+    })
+    setAuth(res.data.user, res.data.token)
+    toast.success('Account created!')
+    navigate('/chat')
+  } catch (e) {
+    toast.error(e.response?.data?.message || 'Register failed')
   }
+}
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{background:'#f1f5f9'}}>

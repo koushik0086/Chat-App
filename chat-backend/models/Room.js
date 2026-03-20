@@ -43,7 +43,7 @@ const roomSchema = new mongoose.Schema(
 );
 
 // ─── Auto-add creator to members on creation ──────────────
-roomSchema.pre("save", function (next) {
+roomSchema.pre("save", async function () {
   if (this.isNew) {
     const alreadyMember = this.members.some(
       (id) => id.toString() === this.createdBy.toString()
@@ -52,7 +52,6 @@ roomSchema.pre("save", function (next) {
       this.members.push(this.createdBy);
     }
   }
-  next();
 });
 
 module.exports = mongoose.model("Room", roomSchema);

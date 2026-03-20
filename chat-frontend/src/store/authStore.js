@@ -7,6 +7,7 @@ export const useAuthStore = create(
       user: null,
       token: null,
       setAuth: (user, token) => set({ user, token }),
+      updateUser: (user) => set({ user }),
       logout: () => set({ user: null, token: null }),
     }),
     { name: 'chat-auth' }

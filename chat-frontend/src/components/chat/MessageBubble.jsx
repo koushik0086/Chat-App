@@ -3,23 +3,24 @@ import { useAuthStore } from '../../store/authStore'
 
 export default function MessageBubble({ msg }) {
   const { user } = useAuthStore()
-  const isOwn = msg.sender._id === user._id
+  const isOwn = msg.sender._id === user?._id
 
   const avatarColors = ['#eef2ff:#6366f1', '#fdf4ff:#a855f7', '#f0fdf4:#22c55e', '#fff7ed:#f97316']
-  const colorPair = avatarColors[msg.sender.username?.charCodeAt(0) % avatarColors.length].split(':')
+  const senderName = msg.sender.name || msg.sender.username || 'User'
+  const colorPair = avatarColors[senderName.charCodeAt(0) % avatarColors.length].split(':')
 
   return (
     <div className={`flex items-end gap-2 mb-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
       {!isOwn && (
         <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 mb-0.5"
           style={{background: colorPair[0], color: colorPair[1]}}>
-          {msg.sender.username?.[0]?.toUpperCase()}
+          {senderName[0]?.toUpperCase()}
         </div>
       )}
       <div className={`max-w-xs ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
         {!isOwn && (
           <span className="text-xs font-medium mb-1 px-1" style={{color:'#6366f1'}}>
-            {msg.sender.username}
+            {senderName}
           </span>
         )}
         <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${
