@@ -5,15 +5,21 @@ export const useChatStore = create((set) => ({
   activeRoom: null,
   messages: {},
   onlineUsers: [],
+  allUsers: [], // ✅ new
 
   setRooms: (rooms) => set({ rooms }),
-
   setActiveRoom: (room) => set({ activeRoom: room }),
-
   setOnlineUsers: (users) => set({ onlineUsers: users }),
+  setAllUsers: (users) => set({ allUsers: users }), // ✅ new
 
-  updateUserOnlineStatus: (userId, isOnline) =>
+  // ✅ update online status in allUsers list
+  updateUserOnlineStatus: (userId, isOnline, lastSeen) =>
     set((s) => ({
+      allUsers: s.allUsers.map((u) =>
+        u._id === userId
+          ? { ...u, isOnline, lastSeen: lastSeen || u.lastSeen }
+          : u
+      ),
       onlineUsers: s.onlineUsers.map((u) =>
         u._id === userId ? { ...u, isOnline } : u
       ),

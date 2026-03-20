@@ -5,11 +5,13 @@ import { useChatStore } from '../store/chatStore'
 
 export function useSocket() {
   const { token } = useAuthStore()
-  const { addMessage, setOnlineUsers } = useChatStore()
   const socketRef = useRef(null)
 
   useEffect(() => {
     if (!token) return
+
+    // ✅ prevent duplicate connections
+    if (socketRef.current?.connected) return
 
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'
 
@@ -22,28 +24,40 @@ export function useSocket() {
 
     s.on('connect', () => {
       console.log('⚡ Socket connected:', s.id)
-      // Get online users on connect
-      s.emit('get-online-users')
     })
 
-    // ─── Match backend event names ─────────────────────────
-    s.on('new-message',      addMessage)
-    s.on('online-users',     setOnlineUsers)
-    s.on('user-online',      (user) => {
-      useChatStore.getState().updateUserOnlineStatus(user.userId, true)
-    })
-    s.on('user-offline',     (user) => {
-      useChatStore.getState().updateUserOnlineStatus(user.userId, false)
+    // ✅ use getState() to always get latest store functions
+    s.on('new-message', (msg) => {
+      useChatStore.getState().addMessage(msg)
     })
 
-    s.on('message-deleted',  ({ messageId, roomId }) => {
+    s.on('online-users', (users) => {
+      useChatStore.getState().setOnlineUsers(users)
+    })
+
+    s.on('user-online', (userData) => {
+      useChatStore.getState().updateUserOnlineStatus(userData.userId, true)
+    })
+
+    s.on('user-offline', (userData) => {
+      useChatStore.getState().updateUserOnlineStatus(
+        userData.userId,
+        false,
+        userData.lastSeen
+      )
+    })
+
+    s.on('message-deleted', ({ messageId, roomId }) => {
       useChatStore.getState().removeMessage(roomId, messageId)
     })
 
     s.on('disconnect', () => console.log('❌ Socket disconnected'))
-    s.on('error',      (e)  => console.error('Socket error:', e))
+    s.on('error', (e) => console.error('Socket error:', e))
 
-    return () => s.disconnect()
+    return () => {
+      s.disconnect()
+      socketRef.current = null
+    }
   }, [token])
 
   const sendMessage = (roomId, content) =>

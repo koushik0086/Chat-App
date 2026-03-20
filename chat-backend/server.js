@@ -59,6 +59,7 @@ app.use("/api", apiLimiter);
 
 // ─── Routes ───────────────────────────────────────────────
 app.use("/api/auth",     require("./routes/authRoutes"));
+app.use("/api/users",    require("./routes/userRoutes"));
 app.use("/api/rooms",    require("./routes/roomRoutes"));
 app.use("/api/messages", require("./routes/messageRoutes"));
 app.use("/api/admin",    require("./routes/adminRoutes"));

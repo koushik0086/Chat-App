@@ -7,4 +7,5 @@ export const sendMessage   = (roomId, content) => api.post(`/messages/${roomId}`
 export const getAdminUsers = ()                => api.get('/admin/users')
 export const getAdminStats = ()                => api.get('/admin/stats')
 export const updateRole    = (userId, role)    => api.patch(`/admin/users/${userId}/role`, { role })
+export const getAllUsers    = ()                => api.get('/users')
 export const deleteUser    = (userId)          => api.delete(`/admin/users/${userId}`)
