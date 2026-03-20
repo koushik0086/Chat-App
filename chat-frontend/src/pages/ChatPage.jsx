@@ -18,8 +18,15 @@ export default function ChatPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    getRooms().then(r => setRooms(r.data.rooms))
-  }, [])
+  getRooms().then(r => setRooms(r.data.rooms))
+  
+  // ✅ refresh user data from backend on every login
+  import('../api/auth').then(({ default: api }) => {
+    api.get('/auth/me').then(r => {
+      useAuthStore.getState().setAuth(r.data.user, useAuthStore.getState().token)
+    })
+  })
+}, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
