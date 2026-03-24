@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogOut, Search, Shield, X, Users, Copy, LogOut as LeaveIcon, Trash2, Check } from 'lucide-react'
+import { LogOut, Search, Shield, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useChatStore } from '../store/chatStore'
 import { useSocket } from '../hooks/useSocket'
 import { getRooms, getMessages } from '../api/chat'
+import api from '../api/auth'
+import { getSocket } from '../hooks/useSocket'
 import MessageBubble from '../components/chat/MessageBubble'
 import MessageInput from '../components/chat/MessageInput'
 import RoomList from '../components/chat/RoomList'
@@ -13,20 +15,18 @@ import OnlineUsers from '../components/chat/OnlineUsers'
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
   const { rooms, activeRoom, messages, setRooms, setActiveRoom, setMessages } = useChatStore()
-  const { sendMessage, joinRoom, leaveRoom } = useSocket()
+  const { sendMessage, joinRoom } = useSocket()
   const bottomRef = useRef(null)
   const navigate = useNavigate()
 
-  // ─── Search state ──────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     getRooms().then(r => setRooms(r.data.rooms))
-    import('../api/auth').then(({ default: api }) => {
-      api.get('/auth/me').then(r => {
-        useAuthStore.getState().setAuth(r.data.user, useAuthStore.getState().token)
-      })
+    api.get('/auth/me').then(r => {
+      useAuthStore.getState().setAuth(r.data.user, useAuthStore.getState().token)
     })
   }, [])
 
@@ -45,21 +45,59 @@ export default function ChatPage() {
 
   const roomMessages = activeRoom ? (messages[activeRoom._id] || []) : []
 
-  // ─── Search filter ─────────────────────────────────────
   const filteredMessages = searchQuery.trim()
     ? roomMessages.filter(m =>
         m.content?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : roomMessages
 
-  // ─── File send ─────────────────────────────────────────
+  // ─── Send text via socket ──────────────────────────────────
+  const handleSendMessage = (text) => {
+    sendMessage(activeRoom._id, text)
+  }
+
+  // ─── Upload file → save to DB → emit via socket ───────────
   const handleSendFile = async (file) => {
-    sendMessage(activeRoom._id, `📎 ${file.name}`)
+    if (!activeRoom) return
+    try {
+      setUploading(true)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Upload to backend — saves file physically + creates Message in DB
+      const res = await api.post(
+        `/messages/${activeRoom._id}/upload`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+
+      const saved = res.data.message
+
+      // Append to local store so sender sees it immediately
+      setMessages(activeRoom._id, [
+        ...(messages[activeRoom._id] || []),
+        saved,
+      ])
+
+      // Broadcast to other users in the room via socket
+      const socket = getSocket?.()
+      if (socket) {
+        socket.emit('broadcast-file', {
+          roomId: activeRoom._id,
+          messageId: saved._id,
+        })
+      }
+
+    } catch (err) {
+      console.error('File upload failed:', err)
+      alert(err?.response?.data?.message || 'File upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const displayName = user?.name || user?.username || 'User'
 
-  // ─── Group messages by date ────────────────────────────
   const groupedMessages = () => {
     let lastDateLabel = null
     return filteredMessages.map(msg => {
@@ -123,7 +161,7 @@ export default function ChatPage() {
       <div className="flex-1 flex flex-col min-w-0" style={{background:'#f8fafc'}}>
         {activeRoom ? (
           <>
-            {/* Chat header */}
+            {/* Header */}
             <div className="px-5 py-3.5 bg-white border-b border-gray-100 flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-medium text-sm flex-shrink-0"
                 style={{background:'#eef2ff', color:'#6366f1'}}>#</div>
@@ -132,7 +170,6 @@ export default function ChatPage() {
                 <p className="text-slate-400 text-xs">{activeRoom.members?.length || 0} members</p>
               </div>
               <div className="ml-auto flex gap-2 items-center">
-                {/* Search button */}
                 <button
                   onClick={() => { setSearchOpen(v => !v); setSearchQuery('') }}
                   className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
@@ -167,6 +204,14 @@ export default function ChatPage() {
               </div>
             )}
 
+            {/* Upload indicator */}
+            {uploading && (
+              <div className="px-5 py-2 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-indigo-400 animate-pulse"/>
+                <p className="text-xs text-indigo-600 font-medium">Uploading file…</p>
+              </div>
+            )}
+
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1">
               {filteredMessages.length === 0 && searchQuery ? (
@@ -192,8 +237,9 @@ export default function ChatPage() {
 
             {/* Input */}
             <MessageInput
-              onSend={(text) => sendMessage(activeRoom._id, text)}
+              onSend={handleSendMessage}
               onSendFile={handleSendFile}
+              uploading={uploading}
             />
           </>
         ) : (

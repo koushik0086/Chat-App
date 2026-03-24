@@ -1,5 +1,85 @@
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const Message = require("../models/Message");
 const Room = require("../models/Room");
+
+// ─── Multer Storage Config ────────────────────────────────
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "../uploads");
+    // Create uploads folder if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // e.g. 1714000000000-originalname.png
+    const unique = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
+    cb(null, unique);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+});
+
+// Export multer middleware to use in routes
+const uploadMiddleware = upload.single("file");
+
+// ─── @route  POST /api/messages/:roomId/upload ────────────
+const uploadFile = (req, res, next) => {
+  uploadMiddleware(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ message: `Upload error: ${err.message}` });
+    } else if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    try {
+      const { roomId } = req.params;
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file provided" });
+      }
+
+      const room = await Room.findById(roomId);
+      if (!room) {
+        return res.status(404).json({ message: "Room not found" });
+      }
+
+      // Detect type: image or file
+      const isImage = req.file.mimetype.startsWith("image/");
+      const type = isImage ? "image" : "file";
+
+      // Public URL to access the file
+      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+
+      const message = await Message.create({
+        roomId,
+        sender: req.user._id,
+        content: req.file.originalname, // fallback content = filename
+        type,
+        fileUrl,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        readBy: [req.user._id],
+      });
+
+      await message.populate("sender", "name avatar role");
+
+      // Update room's lastMessage
+      room.lastMessage = message._id;
+      await room.save();
+
+      res.status(201).json({ success: true, message });
+    } catch (error) {
+      next(error);
+    }
+  });
+};
 
 // ─── @route  GET /api/messages/:roomId ────────────────────
 const getMessages = async (req, res, next) => {
@@ -24,7 +104,7 @@ const getMessages = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      messages: messages.reverse(), // oldest first
+      messages: messages.reverse(),
       pagination: {
         page,
         limit,
@@ -63,7 +143,6 @@ const sendMessage = async (req, res, next) => {
 
     await message.populate("sender", "name avatar role");
 
-    // Update room's lastMessage
     room.lastMessage = message._id;
     await room.save();
 
@@ -82,7 +161,6 @@ const deleteMessage = async (req, res, next) => {
       return res.status(404).json({ message: "Message not found" });
     }
 
-    // Only sender or admin can delete
     const isSender = message.sender.toString() === req.user._id.toString();
     const isAdmin = req.user.role === "admin";
 
@@ -98,4 +176,4 @@ const deleteMessage = async (req, res, next) => {
   }
 };
 
-module.exports = { getMessages, sendMessage, deleteMessage };
+module.exports = { getMessages, sendMessage, deleteMessage, uploadFile };

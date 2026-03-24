@@ -33,13 +33,11 @@ module.exports = (io) => {
   io.on("connection", async (socket) => {
     console.log(`⚡ User connected: ${socket.user.name} (${socket.id})`);
 
-    // Mark user as online
     await User.findByIdAndUpdate(socket.user._id, {
       isOnline: true,
       lastSeen: new Date(),
     });
 
-    // Broadcast to everyone that this user is online
     socket.broadcast.emit("user-online", {
       userId: socket.user._id,
       name: socket.user.name,
@@ -50,14 +48,11 @@ module.exports = (io) => {
     socket.on("join-room", async (roomId) => {
       try {
         const room = await Room.findById(roomId);
-        if (!room) {
-          return socket.emit("error", { message: "Room not found" });
-        }
+        if (!room) return socket.emit("error", { message: "Room not found" });
 
         socket.join(roomId);
         console.log(`🚪 ${socket.user.name} joined room: ${room.name}`);
 
-        // Notify others in the room
         socket.to(roomId).emit("user-joined", {
           userId: socket.user._id,
           name: socket.user.name,
@@ -86,7 +81,7 @@ module.exports = (io) => {
       }
     });
 
-    // ─── Send Message ────────────────────────────────────────
+    // ─── Send Text Message ───────────────────────────────────
     socket.on("send-message", async (data) => {
       try {
         const { roomId, content, type } = data;
@@ -96,11 +91,8 @@ module.exports = (io) => {
         }
 
         const room = await Room.findById(roomId);
-        if (!room) {
-          return socket.emit("error", { message: "Room not found" });
-        }
+        if (!room) return socket.emit("error", { message: "Room not found" });
 
-        // Save message to DB
         const message = await Message.create({
           roomId,
           sender: socket.user._id,
@@ -109,17 +101,40 @@ module.exports = (io) => {
           readBy: [socket.user._id],
         });
 
-        // Populate sender details
         await message.populate("sender", "name avatar role");
 
-        // Update room's last message
         room.lastMessage = message._id;
         await room.save();
 
-        // Broadcast message to everyone in the room including sender
+        // Broadcast to everyone in room including sender
         io.to(roomId).emit("new-message", message);
 
         console.log(`💬 Message in ${roomId} by ${socket.user.name}: ${content}`);
+      } catch (error) {
+        socket.emit("error", { message: error.message });
+      }
+    });
+
+    // ─── Broadcast File Message (already saved via REST API) ─
+    // Called after a successful /upload API call so other users get it live
+    socket.on("broadcast-file", async (data) => {
+      try {
+        const { roomId, messageId } = data;
+
+        if (!roomId || !messageId) return;
+
+        // Fetch the already-saved message from DB
+        const message = await Message.findById(messageId).populate(
+          "sender",
+          "name avatar role"
+        );
+
+        if (!message) return;
+
+        // Send to everyone ELSE in the room (sender already has it locally)
+        socket.to(roomId).emit("new-message", message);
+
+        console.log(`📎 File broadcast in ${roomId} by ${socket.user.name}: ${message.fileName}`);
       } catch (error) {
         socket.emit("error", { message: error.message });
       }
@@ -161,27 +176,18 @@ module.exports = (io) => {
         const { messageId, roomId } = data;
 
         const message = await Message.findById(messageId);
-        if (!message) {
-          return socket.emit("error", { message: "Message not found" });
-        }
+        if (!message) return socket.emit("error", { message: "Message not found" });
 
-        const isSender =
-          message.sender.toString() === socket.user._id.toString();
+        const isSender = message.sender.toString() === socket.user._id.toString();
         const isAdmin = socket.user.role === "admin";
 
         if (!isSender && !isAdmin) {
-          return socket.emit("error", {
-            message: "Not authorized to delete this message",
-          });
+          return socket.emit("error", { message: "Not authorized to delete this message" });
         }
 
         await message.softDelete();
 
-        // Notify everyone in the room
-        io.to(roomId).emit("message-deleted", {
-          messageId,
-          roomId,
-        });
+        io.to(roomId).emit("message-deleted", { messageId, roomId });
       } catch (error) {
         socket.emit("error", { message: error.message });
       }

@@ -3,6 +3,14 @@ import { io } from 'socket.io-client'
 import { useAuthStore } from '../store/authStore'
 import { useChatStore } from '../store/chatStore'
 
+// Module-level variable to store socket instance for external access
+let globalSocket = null
+
+// Function to get the current socket instance (for use outside React components)
+export function getSocket() {
+  return globalSocket
+}
+
 export function useSocket() {
   const { token } = useAuthStore()
   const socketRef = useRef(null)
@@ -21,6 +29,9 @@ export function useSocket() {
     })
 
     const s = socketRef.current
+    
+    // Store reference globally
+    globalSocket = s
 
     s.on('connect', () => {
       console.log('⚡ Socket connected:', s.id)
@@ -51,12 +62,17 @@ export function useSocket() {
       useChatStore.getState().removeMessage(roomId, messageId)
     })
 
-    s.on('disconnect', () => console.log('❌ Socket disconnected'))
+    s.on('disconnect', () => {
+      console.log('❌ Socket disconnected')
+      globalSocket = null
+    })
+    
     s.on('error', (e) => console.error('Socket error:', e))
 
     return () => {
       s.disconnect()
       socketRef.current = null
+      globalSocket = null
     }
   }, [token])
 

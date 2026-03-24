@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -9,7 +10,6 @@ dotenv.config();
 
 const connectDB = require("./config/db");
 const validateEnv = require("./config/validateEnv");
-//const { authLimiter, apiLimiter } = require("./middleware/rateLimiter");
 
 validateEnv();
 connectDB();
@@ -53,9 +53,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ─── Rate Limiting ────────────────────────────────────────
-// app.use("/api/auth", authLimiter);
-// app.use("/api", apiLimiter);
+// ─── Serve uploaded files statically ─────────────────────
+// Files stored in: chat-backend/uploads/
+// Accessible at:   http://localhost:5000/uploads/filename.ext
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ─── Routes ───────────────────────────────────────────────
 app.use("/api/auth",     require("./routes/authRoutes"));
@@ -95,4 +96,5 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`🌍 Allowed origins: ${allowedOrigins.join(", ")}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
+  console.log(`📁 Uploads served at http://localhost:${PORT}/uploads`);
 });
