@@ -9,7 +9,7 @@ dotenv.config();
 
 const connectDB = require("./config/db");
 const validateEnv = require("./config/validateEnv");
-const { authLimiter, apiLimiter } = require("./middleware/rateLimiter");
+//const { authLimiter, apiLimiter } = require("./middleware/rateLimiter");
 
 validateEnv();
 connectDB();
@@ -54,8 +54,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ─── Rate Limiting ────────────────────────────────────────
-app.use("/api/auth", authLimiter);
-app.use("/api", apiLimiter);
+// app.use("/api/auth", authLimiter);
+// app.use("/api", apiLimiter);
 
 // ─── Routes ───────────────────────────────────────────────
 app.use("/api/auth",     require("./routes/authRoutes"));
