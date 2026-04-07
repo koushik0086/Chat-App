@@ -14,6 +14,11 @@ const validateEnv = () => {
     process.exit(1);
   }
 
+  // BACKEND_URL is optional — if not set, file URLs fall back to req.protocol + req.host
+  if (!process.env.BACKEND_URL) {
+    console.warn("⚠️  BACKEND_URL not set. File upload URLs will use req.host (may be wrong on Render). Set BACKEND_URL=https://your-api.onrender.com in Render environment variables.");
+  }
+
   console.log("✅ Environment variables validated");
 };
 

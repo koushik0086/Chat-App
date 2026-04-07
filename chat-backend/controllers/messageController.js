@@ -55,7 +55,9 @@ const uploadFile = (req, res, next) => {
       const type = isImage ? "image" : "file";
 
       // Public URL to access the file
-      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      // Use BACKEND_URL env var so it works correctly on Render/cloud
+      const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+      const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 
       const message = await Message.create({
         roomId,

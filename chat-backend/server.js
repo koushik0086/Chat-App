@@ -18,12 +18,14 @@ const app = express();
 const server = http.createServer(app);
 
 // ─── Allowed Origins ──────────────────────────────────────
+// Filter out undefined/empty values so CORS never breaks if env var is missing
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
+  "http://localhost:3000",
   "http://127.0.0.1:5500",
   "http://localhost:5500",
-];
+].filter(Boolean);
 
 // ─── Socket.IO ────────────────────────────────────────────
 const io = new Server(server, {
@@ -40,6 +42,7 @@ app.set("io", io);
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -55,7 +58,7 @@ app.use(cookieParser());
 
 // ─── Serve uploaded files statically ─────────────────────
 // Files stored in: chat-backend/uploads/
-// Accessible at:   http://localhost:5000/uploads/filename.ext
+// Accessible at:   https://your-render-url.onrender.com/uploads/filename.ext
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ─── Routes ───────────────────────────────────────────────
@@ -96,5 +99,6 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`🌍 Allowed origins: ${allowedOrigins.join(", ")}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
-  console.log(`📁 Uploads served at http://localhost:${PORT}/uploads`);
+  console.log(`📁 Uploads served at /uploads`);
+  console.log(`🔗 Backend URL: ${process.env.BACKEND_URL || "not set (using req.host fallback)"}`);
 });
