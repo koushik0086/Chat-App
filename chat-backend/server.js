@@ -18,7 +18,6 @@ const app = express();
 const server = http.createServer(app);
 
 // ─── Allowed Origins ──────────────────────────────────────
-// Filter out undefined/empty values so CORS never breaks if env var is missing
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
@@ -27,10 +26,24 @@ const allowedOrigins = [
   "http://localhost:5500",
 ].filter(Boolean);
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow ALL Vercel preview URLs for your project
+  if (origin.match(/https:\/\/chat-app.*\.vercel\.app$/)) return true;
+  return false;
+};
+
 // ─── Socket.IO ────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -42,8 +55,7 @@ app.set("io", io);
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -57,8 +69,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ─── Serve uploaded files statically ─────────────────────
-// Files stored in: chat-backend/uploads/
-// Accessible at:   https://your-render-url.onrender.com/uploads/filename.ext
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ─── Routes ───────────────────────────────────────────────
