@@ -3,10 +3,9 @@ import { io } from 'socket.io-client'
 import { useAuthStore } from '../store/authStore'
 import { useChatStore } from '../store/chatStore'
 
-// Module-level variable to store socket instance for external access
+// Module-level singleton socket — one connection for the entire app session
 let globalSocket = null
 
-// Function to get the current socket instance (for use outside React components)
 export function getSocket() {
   return globalSocket
 }
@@ -18,39 +17,53 @@ export function useSocket() {
   useEffect(() => {
     if (!token) return
 
-    // ✅ prevent duplicate connections
-    if (socketRef.current?.connected) return
+    // ✅ If a socket already exists and is connected, reuse it
+    if (globalSocket?.connected) {
+      socketRef.current = globalSocket
+      return
+    }
+
+    // ✅ Disconnect any stale socket before creating new one
+    if (globalSocket) {
+      globalSocket.disconnect()
+      globalSocket = null
+    }
 
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'
 
-    socketRef.current = io(SOCKET_URL, {
+    const socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     })
 
-    const s = socketRef.current
-    
-    // Store reference globally
-    globalSocket = s
+    socketRef.current = socket
+    globalSocket = socket
 
-    s.on('connect', () => {
-      console.log('⚡ Socket connected:', s.id)
+    socket.on('connect', () => {
+      console.log('⚡ Socket connected:', socket.id)
     })
 
-    // ✅ use getState() to always get latest store functions
-    s.on('new-message', (msg) => {
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message)
+    })
+
+    // ✅ Use getState() to always get latest store state (avoids stale closures)
+    socket.on('new-message', (msg) => {
       useChatStore.getState().addMessage(msg)
     })
 
-    s.on('online-users', (users) => {
+    socket.on('online-users', (users) => {
       useChatStore.getState().setOnlineUsers(users)
     })
 
-    s.on('user-online', (userData) => {
+    socket.on('user-online', (userData) => {
       useChatStore.getState().updateUserOnlineStatus(userData.userId, true)
     })
 
-    s.on('user-offline', (userData) => {
+    socket.on('user-offline', (userData) => {
       useChatStore.getState().updateUserOnlineStatus(
         userData.userId,
         false,
@@ -58,38 +71,45 @@ export function useSocket() {
       )
     })
 
-    s.on('message-deleted', ({ messageId, roomId }) => {
+    // ✅ Real-time delete: remove message from store instantly for all users
+    socket.on('message-deleted', ({ messageId, roomId }) => {
       useChatStore.getState().removeMessage(roomId, messageId)
     })
 
-    s.on('disconnect', () => {
-      console.log('❌ Socket disconnected')
-      globalSocket = null
+    socket.on('disconnect', (reason) => {
+      console.log('❌ Socket disconnected:', reason)
+      // Only clear globalSocket if this is our current socket
+      if (globalSocket === socket) {
+        globalSocket = null
+      }
     })
-    
-    s.on('error', (e) => console.error('Socket error:', e))
+
+    socket.on('error', (e) => console.error('Socket error:', e))
 
     return () => {
-      s.disconnect()
+      // Only disconnect if token changes (logout), not on every re-render
+      socket.disconnect()
       socketRef.current = null
-      globalSocket = null
+      if (globalSocket === socket) {
+        globalSocket = null
+      }
     }
   }, [token])
 
   const sendMessage = (roomId, content) =>
-    socketRef.current?.emit('send-message', { roomId, content })
+    (socketRef.current || globalSocket)?.emit('send-message', { roomId, content })
 
   const joinRoom = (roomId) =>
-    socketRef.current?.emit('join-room', roomId)
+    (socketRef.current || globalSocket)?.emit('join-room', roomId)
 
   const leaveRoom = (roomId) =>
-    socketRef.current?.emit('leave-room', roomId)
+    (socketRef.current || globalSocket)?.emit('leave-room', roomId)
 
   const startTyping = (roomId) =>
-    socketRef.current?.emit('typing-start', roomId)
+    (socketRef.current || globalSocket)?.emit('typing-start', roomId)
 
   const stopTyping = (roomId) =>
-    socketRef.current?.emit('typing-stop', roomId)
+    (socketRef.current || globalSocket)?.emit('typing-stop', roomId)
 
   return { sendMessage, joinRoom, leaveRoom, startTyping, stopTyping }
 }

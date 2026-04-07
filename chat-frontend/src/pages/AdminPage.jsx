@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAdminUsers, updateRole, deleteUser, getRooms, getMessages } from '../api/chat'
 import api from '../api/auth'
+import { getSocket } from '../hooks/useSocket'
 import { Shield, ArrowLeft, Trash2, Users, Hash, MessageSquare } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -85,11 +86,18 @@ export default function AdminPage() {
   }
 
   // ─── Message actions ──────────────────────────────────────
-  const handleDeleteMessage = async (messageId) => {
+  // ✅ Fixed: also emit socket event so the chat page updates in real-time (no refresh needed)
+  const handleDeleteMessage = async (messageId, roomId) => {
     if (!window.confirm('Delete this message?')) return
     try {
       await api.delete(`/messages/${messageId}`)
+      // Remove from admin panel list immediately
       setMessages(prev => prev.filter(m => m._id !== messageId))
+      // ✅ Emit socket event so chat page reflects the deletion instantly
+      const socket = getSocket()
+      if (socket) {
+        socket.emit('delete-message', { messageId, roomId })
+      }
       toast.success('Message deleted!')
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to delete message')
@@ -127,8 +135,8 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div className="flex items-center gap-2 mb-5 bg-white p-1.5 rounded-xl border border-gray-100 w-fit">
-          <TabBtn id="users"    icon={Users}        label={`Users (${users.length})`}/>
-          <TabBtn id="rooms"    icon={Hash}         label={`Rooms (${rooms.length})`}/>
+          <TabBtn id="users"    icon={Users}         label={`Users (${users.length})`}/>
+          <TabBtn id="rooms"    icon={Hash}          label={`Rooms (${rooms.length})`}/>
           <TabBtn id="messages" icon={MessageSquare} label="Messages"/>
         </div>
 
@@ -179,7 +187,7 @@ export default function AdminPage() {
                 {rooms.length === 0 && (
                   <p className="text-center text-slate-400 text-sm mt-6">No rooms found</p>
                 )}
-                {rooms.map((room, i) => (
+                {rooms.map((room) => (
                   <div key={room._id}
                     className="flex items-center justify-between bg-white border border-gray-100 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -266,7 +274,8 @@ export default function AdminPage() {
                               <p className="text-sm text-slate-600">{msg.content}</p>
                             </div>
                           </div>
-                          <button onClick={() => handleDeleteMessage(msg._id)}
+                          {/* ✅ Pass roomId so socket event can be emitted correctly */}
+                          <button onClick={() => handleDeleteMessage(msg._id, selectedRoom._id)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50 flex-shrink-0 ml-2">
                             <Trash2 size={13}/>
                           </button>
