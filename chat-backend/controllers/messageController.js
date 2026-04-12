@@ -1,23 +1,26 @@
-const path = require("path");
-const fs = require("fs");
 const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const Message = require("../models/Message");
 const Room = require("../models/Room");
 
-// ─── Multer Storage Config ────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, "../uploads");
-    // Create uploads folder if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // e.g. 1714000000000-originalname.png
-    const unique = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
-    cb(null, unique);
+// ─── Cloudinary Config ────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// ─── Multer Cloudinary Storage ────────────────────────────
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    const isImage = file.mimetype.startsWith("image/");
+    return {
+      folder: "chat-app",
+      resource_type: isImage ? "image" : "raw",
+      public_id: `${Date.now()}-${file.originalname.replace(/\s+/g, "_").replace(/\.[^/.]+$/, "")}`,
+    };
   },
 });
 
@@ -26,7 +29,6 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
 });
 
-// Export multer middleware to use in routes
 const uploadMiddleware = upload.single("file");
 
 // ─── @route  POST /api/messages/:roomId/upload ────────────
@@ -50,19 +52,16 @@ const uploadFile = (req, res, next) => {
         return res.status(404).json({ message: "Room not found" });
       }
 
-      // Detect type: image or file
       const isImage = req.file.mimetype.startsWith("image/");
       const type = isImage ? "image" : "file";
 
-      // Public URL to access the file
-      // Use BACKEND_URL env var so it works correctly on Render/cloud
-      const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
-      const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      // Cloudinary gives us a permanent URL directly
+      const fileUrl = req.file.path;
 
       const message = await Message.create({
         roomId,
         sender: req.user._id,
-        content: req.file.originalname, // fallback content = filename
+        content: req.file.originalname,
         type,
         fileUrl,
         fileName: req.file.originalname,
@@ -72,7 +71,6 @@ const uploadFile = (req, res, next) => {
 
       await message.populate("sender", "name avatar role");
 
-      // Update room's lastMessage
       room.lastMessage = message._id;
       await room.save();
 

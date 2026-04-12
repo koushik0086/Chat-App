@@ -1,6 +1,5 @@
 const express = require("express");
 const http = require("http");
-const path = require("path");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -68,8 +67,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ─── Serve uploaded files statically ─────────────────────
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ─── Routes ───────────────────────────────────────────────
 app.use("/api/auth",     require("./routes/authRoutes"));
@@ -109,6 +106,4 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`🌍 Allowed origins: ${allowedOrigins.join(", ")}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
-  console.log(`📁 Uploads served at /uploads`);
-  console.log(`🔗 Backend URL: ${process.env.BACKEND_URL || "not set (using req.host fallback)"}`);
 });
