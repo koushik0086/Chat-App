@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogOut, Search, Shield, X } from 'lucide-react'
+import { LogOut, Search, Shield, X, MessageCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useChatStore } from '../store/chatStore'
@@ -14,7 +14,7 @@ import OnlineUsers from '../components/chat/OnlineUsers'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
-  const { rooms, activeRoom, messages, setRooms, setActiveRoom, setMessages } = useChatStore()
+  const { rooms, activeRoom, messages, privateRooms, setRooms, setActiveRoom, setMessages } = useChatStore()
   const { sendMessage, joinRoom } = useSocket()
   const bottomRef = useRef(null)
   const navigate = useNavigate()
@@ -64,7 +64,6 @@ export default function ChatPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      // Upload to backend — saves file physically + creates Message in DB
       const res = await api.post(
         `/messages/${activeRoom._id}/upload`,
         formData,
@@ -73,13 +72,11 @@ export default function ChatPage() {
 
       const saved = res.data.message
 
-      // Append to local store so sender sees it immediately
       setMessages(activeRoom._id, [
         ...(messages[activeRoom._id] || []),
         saved,
       ])
 
-      // Broadcast to other users in the room via socket
       const socket = getSocket?.()
       if (socket) {
         socket.emit('broadcast-file', {
@@ -94,6 +91,13 @@ export default function ChatPage() {
     } finally {
       setUploading(false)
     }
+  }
+
+  // ─── Get DM room display name ──────────────────────────────
+  const getDMName = (room) => {
+    if (!room.participants) return 'Direct Message'
+    const other = room.participants.find(p => p._id !== user?._id)
+    return other?.name || 'Direct Message'
   }
 
   const displayName = user?.name || user?.username || 'User'
@@ -134,9 +138,33 @@ export default function ChatPage() {
           <Search size={13} color="#475569"/>
           <input placeholder="Search rooms…" className="bg-transparent border-none outline-none text-slate-400 text-xs placeholder:text-slate-600 w-full"/>
         </div>
+
+        {/* ─── Group Rooms ─────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-2 py-1">
+          <p className="text-slate-600 text-xs px-2 py-1 uppercase tracking-wider">Rooms</p>
           <RoomList rooms={rooms} activeRoom={activeRoom} onSelect={selectRoom}/>
+
+          {/* ─── Direct Messages ──────────────────────── */}
+          {privateRooms.length > 0 && (
+            <>
+              <p className="text-slate-600 text-xs px-2 py-1 mt-3 uppercase tracking-wider">Direct Messages</p>
+              {privateRooms.map(room => (
+                <div key={room._id}
+                  onClick={() => selectRoom(room)}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
+                    activeRoom?._id === room._id
+                      ? 'bg-white/10 text-white'
+                      : 'text-slate-400 hover:bg-white/5'
+                  }`}>
+                  <MessageCircle size={14}/>
+                  <span className="text-xs truncate">{getDMName(room)}</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
+
+        {/* Bottom user bar */}
         <div className="px-3 py-3 border-t border-white/10 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
             style={{background:'#eef2ff', color:'#6366f1'}}>
@@ -164,10 +192,16 @@ export default function ChatPage() {
             {/* Header */}
             <div className="px-5 py-3.5 bg-white border-b border-gray-100 flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center font-medium text-sm flex-shrink-0"
-                style={{background:'#eef2ff', color:'#6366f1'}}>#</div>
+                style={{background:'#eef2ff', color:'#6366f1'}}>
+                {activeRoom.isPrivate ? '👤' : '#'}
+              </div>
               <div>
-                <p className="font-medium text-slate-800 text-sm"># {activeRoom.name}</p>
-                <p className="text-slate-400 text-xs">{activeRoom.members?.length || 0} members</p>
+                <p className="font-medium text-slate-800 text-sm">
+                  {activeRoom.isPrivate ? getDMName(activeRoom) : `# ${activeRoom.name}`}
+                </p>
+                <p className="text-slate-400 text-xs">
+                  {activeRoom.isPrivate ? 'Direct Message' : `${activeRoom.members?.length || 0} members`}
+                </p>
               </div>
               <div className="ml-auto flex gap-2 items-center">
                 <button

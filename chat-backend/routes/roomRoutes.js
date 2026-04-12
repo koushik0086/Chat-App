@@ -7,6 +7,7 @@ const {
   joinRoom,
   leaveRoom,
   deleteRoom,
+  getOrCreatePrivateRoom,
 } = require("../controllers/roomController");
 const { verifyToken, requireRole } = require("../middleware/auth");
 
@@ -19,5 +20,8 @@ router.post("/", createRoom);
 router.post("/:id/join", joinRoom);
 router.post("/:id/leave", leaveRoom);
 router.delete("/:id", requireRole("admin"), deleteRoom);
+
+// ─── Direct Message Route ─────────────────────────────────
+router.post("/private/:userId", getOrCreatePrivateRoom);
 
 module.exports = router;

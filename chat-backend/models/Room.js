@@ -6,7 +6,6 @@ const roomSchema = new mongoose.Schema(
       type: String,
       required: [true, "Room name is required"],
       trim: true,
-      unique: true,
       minlength: [2, "Room name must be at least 2 characters"],
       maxlength: [50, "Room name cannot exceed 50 characters"],
     },
@@ -31,6 +30,13 @@ const roomSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // ─── For Direct Messages ──────────────────────────────
+    participants: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     lastMessage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
@@ -44,7 +50,7 @@ const roomSchema = new mongoose.Schema(
 
 // ─── Auto-add creator to members on creation ──────────────
 roomSchema.pre("save", async function () {
-  if (this.isNew) {
+  if (this.isNew && !this.isPrivate) {
     const alreadyMember = this.members.some(
       (id) => id.toString() === this.createdBy.toString()
     );

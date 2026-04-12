@@ -2,11 +2,13 @@ import { useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { getAllUsers } from '../../api/chat'
 import { useChatStore } from '../../store/chatStore'
+import { useAuthStore } from '../../store/authStore'
 
 export default function OnlineUsers() {
-  const { allUsers, setAllUsers } = useChatStore()
+  const { allUsers, setAllUsers, openPrivateRoom } = useChatStore()
+  const { user: currentUser } = useAuthStore()
 
-  // ✅ fetch all users on mount
+  // fetch all users on mount
   useEffect(() => {
     getAllUsers()
       .then(r => setAllUsers(r.data.users))
@@ -14,6 +16,12 @@ export default function OnlineUsers() {
   }, [])
 
   const onlineCount = allUsers.filter(u => u.isOnline).length
+
+  const handleUserClick = async (u) => {
+    // Don't open DM with yourself
+    if (u._id === currentUser?._id) return
+    await openPrivateRoom(u._id)
+  }
 
   return (
     <div className="w-52 flex-shrink-0 flex flex-col bg-white border-l border-gray-100">
@@ -32,6 +40,7 @@ export default function OnlineUsers() {
         ) : (
           allUsers.map(u => {
             const displayName = u.name || u.username || 'User'
+            const isMe = u._id === currentUser?._id
             const roleColor = {
               admin: { bg:'#eef2ff', text:'#6366f1' },
               user:  { bg:'#f1f5f9', text:'#64748b' },
@@ -40,14 +49,18 @@ export default function OnlineUsers() {
 
             return (
               <div key={u._id}
-                className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50">
+                onClick={() => handleUserClick(u)}
+                className={`flex items-center gap-2 px-2 py-2 rounded-lg transition-colors
+                  ${isMe
+                    ? 'opacity-60 cursor-default'
+                    : 'hover:bg-gray-50 cursor-pointer'
+                  }`}>
                 {/* Avatar with online indicator */}
                 <div className="relative flex-shrink-0">
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
                     style={{background: c.bg, color: c.text}}>
                     {displayName[0]?.toUpperCase()}
                   </div>
-                  {/* ✅ green dot if online, gray if offline */}
                   <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white"
                     style={{background: u.isOnline ? '#22c55e' : '#94a3b8'}}/>
                 </div>
@@ -55,7 +68,7 @@ export default function OnlineUsers() {
                 {/* Name + status */}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-slate-700 truncate">
-                    {displayName}
+                    {displayName} {isMe && '(you)'}
                   </p>
                   {u.isOnline ? (
                     <p className="text-xs" style={{color:'#22c55e'}}>Online</p>
@@ -67,6 +80,11 @@ export default function OnlineUsers() {
                     </p>
                   )}
                 </div>
+
+                {/* DM icon on hover */}
+                {!isMe && (
+                  <div className="text-slate-300 text-xs">💬</div>
+                )}
               </div>
             )
           })

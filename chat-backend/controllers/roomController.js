@@ -130,4 +130,39 @@ const deleteRoom = async (req, res, next) => {
   }
 };
 
-module.exports = { getRooms, getRoomById, createRoom, joinRoom, leaveRoom, deleteRoom };
+// ─── @route  POST /api/rooms/private/:userId ──────────────
+const getOrCreatePrivateRoom = async (req, res, next) => {
+  try {
+    const otherUserId = req.params.userId;
+    const myId = req.user._id;
+
+    // Check if private room already exists between these 2 users
+    const existingRoom = await Room.findOne({
+      isPrivate: true,
+      participants: { $all: [myId, otherUserId] },
+    })
+      .populate("participants", "name avatar isOnline")
+      .populate("lastMessage");
+
+    if (existingRoom) {
+      return res.status(200).json({ success: true, room: existingRoom });
+    }
+
+    // Create new private room
+    const newRoom = await Room.create({
+      name: `dm_${myId.toString().slice(-6)}_${otherUserId.toString().slice(-6)}`,
+      isPrivate: true,
+      participants: [myId, otherUserId],
+      members: [myId, otherUserId],
+      createdBy: myId,
+    });
+
+    await newRoom.populate("participants", "name avatar isOnline");
+
+    res.status(201).json({ success: true, room: newRoom });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getRooms, getRoomById, createRoom, joinRoom, leaveRoom, deleteRoom, getOrCreatePrivateRoom };

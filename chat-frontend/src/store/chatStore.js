@@ -1,16 +1,19 @@
 import { create } from 'zustand'
+import api from '../api/auth'
 
 export const useChatStore = create((set) => ({
   rooms: [],
   activeRoom: null,
   messages: {},
   onlineUsers: [],
-  allUsers: [], // ✅ new
+  allUsers: [],
+  privateRooms: [], // ✅ new — stores DM rooms
 
   setRooms: (rooms) => set({ rooms }),
   setActiveRoom: (room) => set({ activeRoom: room }),
   setOnlineUsers: (users) => set({ onlineUsers: users }),
-  setAllUsers: (users) => set({ allUsers: users }), // ✅ new
+  setAllUsers: (users) => set({ allUsers: users }),
+  setPrivateRooms: (rooms) => set({ privateRooms: rooms }), // ✅ new
 
   // ✅ update online status in allUsers list
   updateUserOnlineStatus: (userId, isOnline, lastSeen) =>
@@ -47,4 +50,24 @@ export const useChatStore = create((set) => ({
         ),
       },
     })),
+
+  // ✅ new — open or create a DM room with a user
+  openPrivateRoom: async (userId) => {
+    try {
+      const { data } = await api.post(`/rooms/private/${userId}`, {});
+      const room = data.room;
+
+      // Add to privateRooms list if not already there
+      set((s) => ({
+        privateRooms: s.privateRooms.some((r) => r._id === room._id)
+          ? s.privateRooms
+          : [...s.privateRooms, room],
+        activeRoom: room,
+      }));
+
+      return room;
+    } catch (error) {
+      console.error("Failed to open private room:", error);
+    }
+  },
 }))
