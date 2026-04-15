@@ -165,4 +165,21 @@ const getOrCreatePrivateRoom = async (req, res, next) => {
   }
 };
 
-module.exports = { getRooms, getRoomById, createRoom, joinRoom, leaveRoom, deleteRoom, getOrCreatePrivateRoom };
+// ─── @route  GET /api/rooms/private ──────────────────────
+const getMyPrivateRooms = async (req, res, next) => {
+  try {
+    const rooms = await Room.find({
+      isPrivate: true,
+      participants: { $in: [req.user._id] },
+    })
+      .populate("participants", "name avatar isOnline")
+      .populate("lastMessage")
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({ success: true, rooms });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getRooms, getRoomById, createRoom, joinRoom, leaveRoom, deleteRoom, getOrCreatePrivateRoom, getMyPrivateRooms };

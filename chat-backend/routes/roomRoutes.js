@@ -8,6 +8,7 @@ const {
   leaveRoom,
   deleteRoom,
   getOrCreatePrivateRoom,
+  getMyPrivateRooms,
 } = require("../controllers/roomController");
 const { verifyToken, requireRole } = require("../middleware/auth");
 
@@ -15,6 +16,7 @@ const { verifyToken, requireRole } = require("../middleware/auth");
 router.use(verifyToken);
 
 router.get("/", getRooms);
+router.get("/private", getMyPrivateRooms);
 router.get("/:id", getRoomById);
 router.post("/", createRoom);
 router.post("/:id/join", joinRoom);

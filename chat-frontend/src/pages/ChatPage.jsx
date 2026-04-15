@@ -14,17 +14,47 @@ import OnlineUsers from '../components/chat/OnlineUsers'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
-  const { rooms, activeRoom, messages, privateRooms, setRooms, setActiveRoom, setMessages } = useChatStore()
+  const {
+    rooms, activeRoom, messages, privateRooms, unreadDMs,
+    setRooms, setActiveRoom, setMessages, markAsRead,
+    incrementUnread, setUnreadCount, setPrivateRooms,
+  } = useChatStore()
   const { sendMessage, joinRoom } = useSocket()
   const bottomRef = useRef(null)
+  const activeRoomRef = useRef(activeRoom)
   const navigate = useNavigate()
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [uploading, setUploading] = useState(false)
 
+  // Keep ref in sync
   useEffect(() => {
+    activeRoomRef.current = activeRoom
+  }, [activeRoom])
+
+  useEffect(() => {
+    // ✅ Clear activeRoom on mount so no DM auto-opens on login
+    setActiveRoom(null)
+
     getRooms().then(r => setRooms(r.data.rooms))
+
+    api.get('/rooms/private').then(r => {
+      const rooms = r.data.rooms
+      setPrivateRooms(rooms)
+
+      // ✅ Load persisted unread counts from DB on login
+      rooms.forEach(room => {
+        api.get(`/messages/${room._id}/unread-count`)
+          .then(res => {
+            if (res.data.count > 0) {
+              setUnreadCount(room._id, res.data.count)
+            }
+          })
+          .catch(() => {})
+      })
+    }).catch(() => {})
+
     api.get('/auth/me').then(r => {
       useAuthStore.getState().setAuth(r.data.user, useAuthStore.getState().token)
     })
@@ -34,11 +64,35 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, activeRoom])
 
+  // ─── Listen for incoming messages for unread count ────────
+  useEffect(() => {
+    const socket = getSocket?.()
+    if (!socket) return
+
+    const handleNewMessage = (msg) => {
+      const isMyMessage = msg.sender._id === user?._id
+      const isActiveRoom = activeRoomRef.current?._id === msg.roomId
+      if (!isMyMessage && !isActiveRoom) {
+        incrementUnread(msg.roomId)
+      }
+    }
+
+    socket.on('new-message', handleNewMessage)
+    return () => socket.off('new-message', handleNewMessage)
+  }, [user])
+
   const selectRoom = async (room) => {
     setActiveRoom(room)
     joinRoom(room._id)
     const res = await getMessages(room._id)
     setMessages(room._id, res.data.messages)
+
+    // ✅ Clear badge in memory
+    markAsRead(room._id)
+
+    // ✅ Persist read status to DB so badge doesn't return on refresh
+    api.post(`/messages/${room._id}/mark-read`).catch(() => {})
+
     setSearchOpen(false)
     setSearchQuery('')
   }
@@ -51,12 +105,10 @@ export default function ChatPage() {
       )
     : roomMessages
 
-  // ─── Send text via socket ──────────────────────────────────
   const handleSendMessage = (text) => {
     sendMessage(activeRoom._id, text)
   }
 
-  // ─── Upload file → save to DB → emit via socket ───────────
   const handleSendFile = async (file) => {
     if (!activeRoom) return
     try {
@@ -93,7 +145,6 @@ export default function ChatPage() {
     }
   }
 
-  // ─── Get DM room display name ──────────────────────────────
   const getDMName = (room) => {
     if (!room.participants) return 'Direct Message'
     const other = room.participants.find(p => p._id !== user?._id)
@@ -148,18 +199,28 @@ export default function ChatPage() {
           {privateRooms.length > 0 && (
             <>
               <p className="text-slate-600 text-xs px-2 py-1 mt-3 uppercase tracking-wider">Direct Messages</p>
-              {privateRooms.map(room => (
-                <div key={room._id}
-                  onClick={() => selectRoom(room)}
-                  className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
-                    activeRoom?._id === room._id
-                      ? 'bg-white/10 text-white'
-                      : 'text-slate-400 hover:bg-white/5'
-                  }`}>
-                  <MessageCircle size={14}/>
-                  <span className="text-xs truncate">{getDMName(room)}</span>
-                </div>
-              ))}
+              {privateRooms.map(room => {
+                const unread = unreadDMs?.[room._id] || 0
+                return (
+                  <div key={room._id}
+                    onClick={() => selectRoom(room)}
+                    className={`flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
+                      activeRoom?._id === room._id
+                        ? 'bg-white/10 text-white'
+                        : 'text-slate-400 hover:bg-white/5'
+                    }`}>
+                    <MessageCircle size={14}/>
+                    <span className="text-xs truncate flex-1">{getDMName(room)}</span>
+                    {/* ✅ Unread badge */}
+                    {unread > 0 && (
+                      <span className="w-4 h-4 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                        style={{background:'#22c55e', fontSize:'9px'}}>
+                        {unread > 9 ? '9+' : unread}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </>
           )}
         </div>
@@ -262,7 +323,7 @@ export default function ChatPage() {
                         </span>
                       </div>
                     )}
-                    <MessageBubble msg={msg}/>
+                    <MessageBubble msg={msg} isDM={activeRoom?.isPrivate}/>
                   </div>
                 ))
               )}

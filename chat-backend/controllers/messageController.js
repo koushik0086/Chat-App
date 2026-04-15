@@ -26,7 +26,7 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 const uploadMiddleware = upload.single("file");
@@ -54,8 +54,6 @@ const uploadFile = (req, res, next) => {
 
       const isImage = req.file.mimetype.startsWith("image/");
       const type = isImage ? "image" : "file";
-
-      // Cloudinary gives us a permanent URL directly
       const fileUrl = req.file.path;
 
       const message = await Message.create({
@@ -176,4 +174,61 @@ const deleteMessage = async (req, res, next) => {
   }
 };
 
-module.exports = { getMessages, sendMessage, deleteMessage, uploadFile };
+// ─── @route  GET /api/messages/:roomId/unread-count ───────
+const getUnreadCount = async (req, res, next) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const count = await Message.countDocuments({
+      roomId,
+      isDeleted: false,
+      readBy: { $ne: req.user._id },
+    });
+
+    res.status(200).json({ success: true, count });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── @route  POST /api/messages/:roomId/mark-read ─────────
+// Adds current user to readBy for ALL unread messages in this room
+const markRoomAsRead = async (req, res, next) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    await Message.updateMany(
+      {
+        roomId,
+        isDeleted: false,
+        readBy: { $ne: req.user._id }, // only messages not yet read by user
+      },
+      {
+        $addToSet: { readBy: req.user._id }, // add without duplicates
+      }
+    );
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  getMessages,
+  sendMessage,
+  deleteMessage,
+  uploadFile,
+  getUnreadCount,
+  markRoomAsRead,
+};

@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react'
-import { Send, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react'
+import { Send, Paperclip, X, FileText, Smile } from 'lucide-react'
+import EmojiPicker from 'emoji-picker-react'
 
 export default function MessageInput({ onSend, onSendFile }) {
   const [text, setText] = useState('')
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
+  const [showEmoji, setShowEmoji] = useState(false)
   const fileRef = useRef(null)
 
   const handleFile = (e) => {
@@ -35,6 +37,21 @@ export default function MessageInput({ onSend, onSendFile }) {
     setText('')
   }
 
+  const handleKeyDown = (e) => {
+    // Shift+Enter → new line
+    if (e.key === 'Enter' && e.shiftKey) return
+    // Enter alone → send
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handle()
+    }
+  }
+
+  const onEmojiClick = (emojiData) => {
+    setText(prev => prev + emojiData.emoji)
+    setShowEmoji(false)
+  }
+
   const isImage = file?.type.startsWith('image/')
 
   return (
@@ -59,7 +76,21 @@ export default function MessageInput({ onSend, onSendFile }) {
         </div>
       )}
 
-      <div className="flex items-center gap-2.5">
+      {/* Emoji Picker */}
+      {showEmoji && (
+        <div className="absolute bottom-20 right-4 z-50">
+          <EmojiPicker
+            onEmojiClick={onEmojiClick}
+            height={380}
+            width={300}
+            searchDisabled={false}
+            skinTonesDisabled
+            previewConfig={{ showPreview: false }}
+          />
+        </div>
+      )}
+
+      <div className="flex items-end gap-2.5">
         {/* Hidden file input */}
         <input
           ref={fileRef}
@@ -72,26 +103,48 @@ export default function MessageInput({ onSend, onSendFile }) {
         {/* Paperclip button */}
         <button
           onClick={() => fileRef.current?.click()}
-          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-400 hover:bg-indigo-50 hover:text-indigo-400 hover:border-indigo-200 transition-all flex-shrink-0">
+          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-400 hover:bg-indigo-50 hover:text-indigo-400 hover:border-indigo-200 transition-all flex-shrink-0 mb-1">
           <Paperclip size={14}/>
         </button>
 
-        {/* Text input */}
-        <input
+        {/* Textarea input */}
+        <textarea
           value={text}
           onChange={e => setText(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handle()}
+          onKeyDown={handleKeyDown}
           placeholder={file ? 'Press send to upload file…' : 'Type a message…'}
           disabled={!!file}
-          className="flex-1 text-sm px-4 py-2 rounded-full outline-none border border-gray-200 bg-gray-50 focus:border-indigo-400 focus:bg-white transition-all disabled:opacity-50"
-          style={{color:'#1e293b'}}
+          rows={1}
+          className="flex-1 text-sm px-4 py-2 rounded-2xl outline-none border border-gray-200 bg-gray-50 focus:border-indigo-400 focus:bg-white transition-all disabled:opacity-50 resize-none"
+          style={{
+            color: '#1e293b',
+            maxHeight: '120px',
+            overflowY: 'auto',
+            lineHeight: '1.5'
+          }}
+          onInput={e => {
+            // Auto grow textarea
+            e.target.style.height = 'auto'
+            e.target.style.height = e.target.scrollHeight + 'px'
+          }}
         />
+
+        {/* Emoji button */}
+        <button
+          onClick={() => setShowEmoji(v => !v)}
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 mb-1 ${
+            showEmoji
+              ? 'bg-indigo-50 border-indigo-200 text-indigo-400'
+              : 'border-gray-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-400'
+          }`}>
+          <Smile size={14}/>
+        </button>
 
         {/* Send button */}
         <button
           onClick={handle}
           disabled={!text.trim() && !file}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-40"
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:opacity-90 transition-opacity disabled:opacity-40 mb-1"
           style={{background:'#6366f1'}}>
           <Send size={14} color="white"/>
         </button>
