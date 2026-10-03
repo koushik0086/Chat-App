@@ -5,27 +5,36 @@ const Message = require("../models/Message");
 const Room = require("../models/Room");
 
 // ─── Cloudinary Config ────────────────────────────────────
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const hasCloudinaryConfig =
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET;
+
+if (hasCloudinaryConfig) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
 
 // ─── Multer Cloudinary Storage ────────────────────────────
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req, file) => {
-    const isImage = file.mimetype.startsWith("image/");
-    return {
-      folder: "chat-app",
-      resource_type: isImage ? "image" : "raw",
-      public_id: `${Date.now()}-${file.originalname.replace(/\s+/g, "_").replace(/\.[^/.]+$/, "")}`,
-    };
-  },
-});
+const storage = hasCloudinaryConfig
+  ? new CloudinaryStorage({
+      cloudinary,
+      params: async (req, file) => {
+        const isImage = file.mimetype.startsWith("image/");
+        return {
+          folder: "chat-app",
+          resource_type: isImage ? "image" : "raw",
+          public_id: `${Date.now()}-${file.originalname.replace(/\s+/g, "_").replace(/\.[^/.]+$/, "")}`,
+        };
+      },
+    })
+  : null;
 
 const upload = multer({
-  storage,
+  storage: storage || undefined,
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
@@ -42,6 +51,10 @@ const uploadFile = (req, res, next) => {
 
     try {
       const { roomId } = req.params;
+
+      if (!hasCloudinaryConfig) {
+        return res.status(400).json({ message: "File uploads are not configured on this server" });
+      }
 
       if (!req.file) {
         return res.status(400).json({ message: "No file provided" });

@@ -1,1 +1,187 @@
 @import "tailwindcss";
+
+:root {
+  font-family: Inter, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #111827;
+  background: #f5f2ee;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(212, 191, 174, 0.28), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(148, 163, 184, 0.16), transparent 25%),
+    #f5f2ee;
+}
+
+button, input, textarea {
+  font: inherit;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+
+.auth-card {
+  width: min(100%, 980px);
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(17, 24, 39, 0.06);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.auth-panel {
+  position: relative;
+  padding: 40px 36px;
+  background: linear-gradient(180deg, #1c1c1c 0%, #111827 100%);
+  color: #f8fafc;
+}
+
+.auth-panel::before {
+  content: "";
+  position: absolute;
+  inset: 18px 18px auto auto;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  filter: blur(4px);
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f9f6f1, #d8c9b8);
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.auth-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-mini-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(248, 250, 252, 0.8);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.auth-form {
+  background: rgba(255, 255, 255, 0.78);
+  padding: 40px 32px;
+}
+
+.auth-form h1 {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(2rem, 2vw, 2.5rem);
+  letter-spacing: -0.05em;
+  font-weight: 600;
+}
+
+.auth-form p {
+  margin: 0;
+}
+
+.form-input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid #e7e2db;
+  background: #f9f7f4;
+  color: #111827;
+  padding: 0.9rem 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.form-input::placeholder {
+  color: #9ca3af;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: rgba(17, 24, 39, 0.7);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.04);
+}
+
+.primary-btn {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #171717 0%, #2f2f2f 100%);
+  color: #fff;
+  padding: 0.92rem 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 16px 28px rgba(17, 24, 39, 0.16);
+}
+
+.primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 28px rgba(17, 24, 39, 0.18);
+}
+
+.primary-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.muted-link {
+  color: #4b5563;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.muted-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 767px) {
+  .auth-card {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-panel {
+    padding: 28px 22px;
+  }
+
+  .auth-form {
+    padding: 28px 20px 30px;
+  }
+}

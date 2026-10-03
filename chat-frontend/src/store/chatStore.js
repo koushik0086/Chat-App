@@ -13,7 +13,10 @@ export const useChatStore = create((set) => ({
   setRooms: (rooms) => set({ rooms }),
   setActiveRoom: (room) => set({ activeRoom: room }),
   setOnlineUsers: (users) => set({ onlineUsers: users }),
-  setAllUsers: (users) => set({ allUsers: users }),
+  setAllUsers: (users) =>
+    set((state) => ({
+      allUsers: typeof users === 'function' ? users(state.allUsers) : users,
+    })),
   setPrivateRooms: (rooms) => set({ privateRooms: rooms }),
 
   // ✅ Called on socket new-message for rooms not currently active
@@ -37,17 +40,43 @@ export const useChatStore = create((set) => ({
       unreadDMs: { ...s.unreadDMs, [roomId]: count },
     })),
 
-  updateUserOnlineStatus: (userId, isOnline, lastSeen) =>
-    set((s) => ({
-      allUsers: s.allUsers.map((u) =>
-        u._id === userId
-          ? { ...u, isOnline, lastSeen: lastSeen || u.lastSeen }
-          : u
-      ),
-      onlineUsers: s.onlineUsers.map((u) =>
-        u._id === userId ? { ...u, isOnline } : u
-      ),
-    })),
+  updateUserOnlineStatus: (userId, isOnline, lastSeen, userData = {}) =>
+    set((s) => {
+      const nextAllUsers = [...s.allUsers]
+      const index = nextAllUsers.findIndex((u) => u._id === userId)
+
+      if (index >= 0) {
+        nextAllUsers[index] = {
+          ...nextAllUsers[index],
+          ...userData,
+          isOnline,
+          lastSeen: lastSeen || nextAllUsers[index].lastSeen || new Date().toISOString(),
+        }
+      } else {
+        nextAllUsers.push({
+          _id: userId,
+          name: userData.name || 'User',
+          avatar: userData.avatar || '',
+          role: userData.role || 'user',
+          isOnline,
+          lastSeen: lastSeen || new Date().toISOString(),
+          ...userData,
+        })
+      }
+
+      const nextOnlineUsers = s.onlineUsers.some((u) => u._id === userId)
+        ? s.onlineUsers.map((u) =>
+            u._id === userId ? { ...u, ...userData, isOnline, lastSeen: lastSeen || u.lastSeen } : u
+          )
+        : isOnline
+          ? [...s.onlineUsers, { _id: userId, ...userData, isOnline, lastSeen: lastSeen || new Date().toISOString() }]
+          : s.onlineUsers
+
+      return {
+        allUsers: nextAllUsers,
+        onlineUsers: nextOnlineUsers,
+      }
+    }),
 
   setMessages: (roomId, msgs) =>
     set((s) => ({

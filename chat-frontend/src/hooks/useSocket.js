@@ -6,6 +6,9 @@ import { useChatStore } from '../store/chatStore'
 // Module-level singleton socket — one connection for the entire app session
 let globalSocket = null
 
+const normalizeBaseUrl = (value) =>
+  typeof value === 'string' ? value.trim().replace(/\/+$/, '') : ''
+
 export function getSocket() {
   return globalSocket
 }
@@ -29,7 +32,17 @@ export function useSocket() {
       globalSocket = null
     }
 
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'
+    const configuredSocketUrl = normalizeBaseUrl(
+      import.meta.env.VITE_SOCKET_URL ||
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_BACKEND_URL
+    )
+    const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    const SOCKET_URL = configuredSocketUrl
+      ? configuredSocketUrl.replace(/\/api$/, '')
+      : isLocalDev
+        ? 'http://localhost:5000'
+        : window.location.origin
 
     const socket = io(SOCKET_URL, {
       auth: { token },
@@ -44,6 +57,7 @@ export function useSocket() {
 
     socket.on('connect', () => {
       console.log('⚡ Socket connected:', socket.id)
+      socket.emit('get-online-users')
     })
 
     socket.on('connect_error', (err) => {
@@ -57,17 +71,26 @@ export function useSocket() {
 
     socket.on('online-users', (users) => {
       useChatStore.getState().setOnlineUsers(users)
+      useChatStore.getState().setAllUsers((prevUsers) => {
+        const byId = new Map(prevUsers.map((u) => [u._id, u]))
+        users.forEach((u) => {
+          const current = byId.get(u._id)
+          byId.set(u._id, { ...(current || {}), ...u, isOnline: !!u.isOnline })
+        })
+        return [...byId.values()]
+      })
     })
 
     socket.on('user-online', (userData) => {
-      useChatStore.getState().updateUserOnlineStatus(userData.userId, true)
+      useChatStore.getState().updateUserOnlineStatus(userData.userId, true, userData.lastSeen, userData)
     })
 
     socket.on('user-offline', (userData) => {
       useChatStore.getState().updateUserOnlineStatus(
         userData.userId,
         false,
-        userData.lastSeen
+        userData.lastSeen,
+        userData
       )
     })
 

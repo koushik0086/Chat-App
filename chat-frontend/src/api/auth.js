@@ -1,9 +1,20 @@
 import axios from 'axios'
 
+const normalizeBaseUrl = (value) =>
+  typeof value === 'string' ? value.trim().replace(/\/+$/, '') : ''
+
+const configuredApiUrl = normalizeBaseUrl(
+  import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL
+)
+const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+const apiBaseUrl = configuredApiUrl
+  ? configuredApiUrl.replace(/\/api$/, '')
+  : isLocalDev
+    ? 'http://localhost:5000'
+    : window.location.origin
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api`
-    : 'http://localhost:5000/api'
+  baseURL: `${apiBaseUrl}/api`,
 })
 
 api.interceptors.request.use(cfg => {
